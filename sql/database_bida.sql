@@ -1,0 +1,192 @@
+CREATE DATABASE IF NOT EXISTS `QLBD` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `QLBD`;
+
+-- 1. Bảng Chức Vụ
+CREATE TABLE `ChucVu` (
+  `MaChucVu` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenChucVu` TEXT NOT NULL
+) ENGINE=InnoDB;
+
+-- 2. Bảng Khu Vực
+CREATE TABLE `KhuVuc` (
+  `MaKhuVuc` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenKhuVuc` TEXT NOT NULL,
+  `PhuThu` DECIMAL(18, 2) NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+-- 3. Bảng Loại Bàn
+CREATE TABLE `LoaiBan` (
+  `MaLoaiBan` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenLoai` TEXT NOT NULL,
+  `PhuThu` DECIMAL(18, 2) NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+-- 4. Bảng Đơn Vị Tính
+CREATE TABLE `DonViTinhs` (
+  `MaDVT` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenDVT` VARCHAR(50) NOT NULL
+) ENGINE=InnoDB;
+
+-- 5. Bảng Danh Mục Món
+CREATE TABLE `DanhMucMon` (
+  `MaDanhMuc` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenDanhMuc` TEXT NOT NULL
+) ENGINE=InnoDB;
+
+-- 6. Bảng Nhà Cung Cấp
+CREATE TABLE `NhaCungCap` (
+  `MaNhaCungCap` VARCHAR(20) PRIMARY KEY,
+  `TenNhaCungCap` VARCHAR(100) NOT NULL,
+  `SoDienThoai` VARCHAR(20) NOT NULL,
+  `DiaChi` VARCHAR(255) NOT NULL,
+  `Email` VARCHAR(100) NOT NULL,
+  `TrangThai` BOOLEAN NOT NULL DEFAULT 1,
+  `LoaiCungCap` VARCHAR(50) NOT NULL
+) ENGINE=InnoDB;
+
+-- 7. Bảng Nhân Viên
+CREATE TABLE `NhanVien` (
+  `MaNhanVien` INT AUTO_INCREMENT PRIMARY KEY,
+  `HoTen` TEXT NOT NULL,
+  `SDT` TEXT NOT NULL,
+  `MaChucVu` INT NOT NULL,
+  `DiaChi` TEXT NOT NULL,
+  CONSTRAINT `FK_NhanVien_ChucVu` FOREIGN KEY (`MaChucVu`) REFERENCES `ChucVu` (`MaChucVu`)
+) ENGINE=InnoDB;
+
+-- 8. Bảng User
+CREATE TABLE `User` (
+  `MaUser` INT AUTO_INCREMENT PRIMARY KEY,
+  `Username` VARCHAR(255) NOT NULL,
+  `PasswordHash` TEXT NOT NULL,
+  `IsActive` BOOLEAN NOT NULL DEFAULT 1,
+  `MaNhanVien` INT NOT NULL UNIQUE,
+  CONSTRAINT `FK_User_NhanVien` FOREIGN KEY (`MaNhanVien`) REFERENCES `NhanVien` (`MaNhanVien`)
+) ENGINE=InnoDB;
+
+-- 9. Bảng Bàn
+CREATE TABLE `Ban` (
+  `MaBan` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenBan` TEXT NOT NULL,
+  `TrangThai` TEXT NOT NULL,
+  `MaLoaiBan` INT NOT NULL,
+  `GiaGio` DECIMAL(18, 2) NOT NULL DEFAULT 0.0,
+  `MaKhuVuc` INT NULL,
+  CONSTRAINT `FK_Ban_KhuVuc` FOREIGN KEY (`MaKhuVuc`) REFERENCES `KhuVuc` (`MaKhuVuc`),
+  CONSTRAINT `FK_Ban_LoaiBan` FOREIGN KEY (`MaLoaiBan`) REFERENCES `LoaiBan` (`MaLoaiBan`)
+) ENGINE=InnoDB;
+
+-- 10. Bảng Khách Hàng
+CREATE TABLE `KhachHang` (
+  `MaKhachHang` INT AUTO_INCREMENT PRIMARY KEY,
+  `HoTen` TEXT NOT NULL,
+  `SDT` TEXT NULL,
+  `DiemTichLuy` INT NOT NULL DEFAULT 0,
+  `Hang` TEXT NOT NULL,
+  `IsStaff` BOOLEAN NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+-- 11. Bảng Khuyến Mãi
+CREATE TABLE `KhuyenMai` (
+  `MaKhuyenMai` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenKhuyenMai` TEXT NOT NULL,
+  `NgayBatDau` DATETIME NOT NULL,
+  `NgayKetThuc` DATETIME NOT NULL,
+  `GiaTri` DOUBLE NOT NULL DEFAULT 0,
+  `LoaiKhuyenMai` INT NOT NULL DEFAULT 0,
+  `GioBatDau` TIME NOT NULL DEFAULT '00:00:00',
+  `GioKetThuc` TIME NOT NULL DEFAULT '00:00:00',
+  `MoTa` TEXT NULL,
+  `TrangThai` INT NOT NULL DEFAULT 0,
+  `UuTien` INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+-- 12. Bảng Món
+CREATE TABLE `Mon` (
+  `MaMon` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenMon` VARCHAR(100) NOT NULL,
+  `GiaBan` DECIMAL(18, 2) NOT NULL,
+  `MaDanhMuc` INT NOT NULL,
+  `DonViTinhMaDVT` INT NULL,
+  `SoLuongTon` DOUBLE NULL,
+  `TrangThai` BOOLEAN NOT NULL DEFAULT 1,
+  CONSTRAINT `FK_Mon_DanhMuc` FOREIGN KEY (`MaDanhMuc`) REFERENCES `DanhMucMon` (`MaDanhMuc`),
+  CONSTRAINT `FK_Mon_DVT` FOREIGN KEY (`DonViTinhMaDVT`) REFERENCES `DonViTinhs` (`MaDVT`)
+) ENGINE=InnoDB;
+
+-- 13. Bảng Hóa Đơn
+CREATE TABLE `HoaDon` (
+  `MaHoaDon` INT AUTO_INCREMENT PRIMARY KEY,
+  `NgayLap` DATETIME NOT NULL,
+  `MaBan` INT NOT NULL,
+  `MaNhanVien` INT NOT NULL,
+  `MaKhachHang` INT NULL,
+  `MaKhuyenMai` INT NULL,
+  `TongTien` DECIMAL(18, 2) NOT NULL,
+  `TrangThai` INT NOT NULL DEFAULT 0,
+  `NgayKetThuc` DATETIME NULL,
+  `TienGioLuyKe` DECIMAL(18, 2) NOT NULL DEFAULT 0.0,
+  CONSTRAINT `FK_HoaDon_Ban` FOREIGN KEY (`MaBan`) REFERENCES `Ban` (`MaBan`),
+  CONSTRAINT `FK_HoaDon_KhachHang` FOREIGN KEY (`MaKhachHang`) REFERENCES `KhachHang` (`MaKhachHang`) ON DELETE SET NULL,
+  CONSTRAINT `FK_HoaDon_NhanVien` FOREIGN KEY (`MaNhanVien`) REFERENCES `NhanVien` (`MaNhanVien`),
+  CONSTRAINT `FK_HoaDon_KhuyenMai` FOREIGN KEY (`MaKhuyenMai`) REFERENCES `KhuyenMai` (`MaKhuyenMai`)
+) ENGINE=InnoDB;
+
+-- 14. Chi Tiết Hóa Đơn
+CREATE TABLE `ChiTietHoaDon` (
+  `MaChiTietHD` INT AUTO_INCREMENT PRIMARY KEY,
+  `MaHoaDon` INT NOT NULL,
+  `MaMon` INT NOT NULL,
+  `SoLuong` INT NOT NULL,
+  `DonGia` DECIMAL(18, 2) NOT NULL,
+  `GhiChu` TEXT NULL,
+  CONSTRAINT `FK_ChiTietHD_HoaDon` FOREIGN KEY (`MaHoaDon`) REFERENCES `HoaDon` (`MaHoaDon`),
+  CONSTRAINT `FK_ChiTietHD_Mon` FOREIGN KEY (`MaMon`) REFERENCES `Mon` (`MaMon`)
+) ENGINE=InnoDB;
+
+-- 15. Bảng Nguyên Liệu
+CREATE TABLE `NguyenLieu` (
+  `MaNguyenLieu` INT AUTO_INCREMENT PRIMARY KEY,
+  `TenNguyenLieu` TEXT NOT NULL,
+  `SoLuongTon` DOUBLE NOT NULL,
+  `MaDVT` INT NOT NULL,
+  `MaNhaCungCap` VARCHAR(20) NOT NULL,
+  `GiaVon` DECIMAL(18, 2) NOT NULL DEFAULT 0.0,
+  CONSTRAINT `FK_NguyenLieu_DVT` FOREIGN KEY (`MaDVT`) REFERENCES `DonViTinhs` (`MaDVT`),
+  CONSTRAINT `FK_NguyenLieu_NCC` FOREIGN KEY (`MaNhaCungCap`) REFERENCES `NhaCungCap` (`MaNhaCungCap`)
+) ENGINE=InnoDB;
+
+-- 16. Phiếu Nhập
+CREATE TABLE `PhieuNhap` (
+  `MaPhieuNhap` INT AUTO_INCREMENT PRIMARY KEY,
+  `NgayNhap` DATETIME NOT NULL,
+  `TongTien` DECIMAL(18, 2) NOT NULL,
+  `MaNhanVien` INT NOT NULL,
+  `GhiChu` VARCHAR(255) NOT NULL DEFAULT '',
+  `MaNhaCungCap` VARCHAR(20) NOT NULL,
+  `MaPhieu` VARCHAR(20) NOT NULL,
+  CONSTRAINT `FK_PhieuNhap_NCC` FOREIGN KEY (`MaNhaCungCap`) REFERENCES `NhaCungCap` (`MaNhaCungCap`),
+  CONSTRAINT `FK_PhieuNhap_NhanVien` FOREIGN KEY (`MaNhanVien`) REFERENCES `NhanVien` (`MaNhanVien`)
+) ENGINE=InnoDB;
+
+-- 17. Chi Tiết Phiếu Nhập
+CREATE TABLE `ChiTietPhieuNhap` (
+  `MaChiTietPN` INT AUTO_INCREMENT PRIMARY KEY,
+  `MaPhieuNhap` INT NOT NULL,
+  `MaNguyenLieu` INT NOT NULL,
+  `SoLuong` DOUBLE NOT NULL,
+  `DonGiaNhap` DECIMAL(18, 2) NOT NULL,
+  `DvtNhap` TEXT NOT NULL,
+  `HeSoQuyDoi` DOUBLE NOT NULL DEFAULT 0,
+  `SoLuongNhap` DOUBLE NOT NULL DEFAULT 0,
+  `ThanhTien` DECIMAL(18, 2) NOT NULL DEFAULT 0,
+  CONSTRAINT `FK_ChiTietPN_PN` FOREIGN KEY (`MaPhieuNhap`) REFERENCES `PhieuNhap` (`MaPhieuNhap`),
+  CONSTRAINT `FK_ChiTietPN_NL` FOREIGN KEY (`MaNguyenLieu`) REFERENCES `NguyenLieu` (`MaNguyenLieu`)
+) ENGINE=InnoDB;
+
+-- 18. System Settings
+CREATE TABLE `SystemSetting` (
+  `Id` INT AUTO_INCREMENT PRIMARY KEY,
+  `Key` VARCHAR(100) NOT NULL UNIQUE,
+  `Value` TEXT NOT NULL
+) ENGINE=InnoDB;

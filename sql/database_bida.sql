@@ -190,3 +190,8 @@ CREATE TABLE `SystemSetting` (
   `Key` VARCHAR(100) NOT NULL UNIQUE,
   `Value` TEXT NOT NULL
 ) ENGINE=InnoDB;
+
+-- Dữ liệu mẫu để test
+INSERT INTO `ChucVu` (`MaChucVu`, `TenChucVu`) VALUES (1, 'Manager');
+INSERT INTO `NhanVien` (`MaNhanVien`, `HoTen`, `SDT`, `MaChucVu`, `DiaChi`) VALUES (1, 'Admin hệ thống', '0900000000', 1, 'Cơ sở mặc định');
+INSERT INTO `User` (`MaUser`, `Username`, `PasswordHash`, `IsActive`, `MaNhanVien`) VALUES (1, 'admin', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 1, 1);

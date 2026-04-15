@@ -21,20 +21,20 @@
 
 ### Bước 2: Cài đặt cơ sở dữ liệu
 - Mở phpMyAdmin (thường tại http://localhost/phpmyadmin)
-- Tạo database mới tên `bida`
+- Tạo database mới tên `QLBD`
 - Import file `sql/database_bida.sql` vào database vừa tạo
 
 ### Bước 3: Cấu hình kết nối CSDL
 - Mở file `config/db.php`
 - Kiểm tra và chỉnh sửa thông tin kết nối cho phù hợp:
   - `$host = 'localhost';`
-  - `$db = 'bida';`
+  - `$db = 'QLBD';`
   - `$user = 'root';` (hoặc tài khoản MySQL của bạn)
   - `$pass = '';` (mật khẩu MySQL)
 
 ### Bước 4: Chạy dự án
-- Copy toàn bộ thư mục `DOAN_WED` vào thư mục `www` của VertrigoServ (hoặc `htdocs` nếu dùng XAMPP)
-- Truy cập trình duyệt và mở địa chỉ: `http://localhost/DOAN_WED/index.php`
+- Copy toàn bộ thư mục `DoAn_Web` vào thư mục `www` của VertrigoServ (hoặc `htdocs` nếu dùng XAMPP)
+- Truy cập trình duyệt và mở địa chỉ: `http://localhost/DoAn_Web/index.php`
 
 ## 4. Cấu trúc thư mục
 - `assets/` : Tài nguyên tĩnh (css, js, img)
@@ -47,7 +47,8 @@
 - `index.php` : Trang chủ
 
 ## 5. Tài khoản mẫu
-- Tài khoản đăng nhập quản lý: (xem trong CSDL bảng `users` hoặc hỏi người phát triển)
+- Tài khoản đăng nhập quản lý: `admin / 123456`
+- Dữ liệu mẫu này được khởi tạo trong `sql/database_bida.sql`
 
 ## 6. Ghi chú
 - Nếu gặp lỗi kết nối CSDL, kiểm tra lại thông tin trong `config/db.php`.

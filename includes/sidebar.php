@@ -6,7 +6,7 @@ declare(strict_types=1);
         <div class="brand-mark">DW</div>
         <div>
             <strong>DOAN_WEB</strong>
-            <p>Billiards Control Hub</p>
+            <p>Trung tâm quản lý bida</p>
         </div>
     </div>
 
@@ -21,15 +21,15 @@ declare(strict_types=1);
     </nav>
 
     <div class="sidebar-foot">
-        <p>Shift summary</p>
+        <p>Tổng quan ca làm</p>
         <div class="foot-card">
-            <span>Open tables</span>
-            <strong>11</strong>
+            <span>Bàn đang sử dụng</span>
+            <strong><?php echo h((string)($banDangSuDung ?? 0)); ?></strong>
         </div>
         <div class="foot-card">
-            <span>Pending bills</span>
-            <strong>6</strong>
+            <span>Hóa đơn mở</span>
+            <strong><?php echo h((string)($openOrders ?? 0)); ?></strong>
         </div>
-        <a class="logout-link" href="logout.php"><i class="ri-logout-box-r-line"></i> Logout</a>
+        <a class="logout-link" href="logout.php"><i class="ri-logout-box-r-line"></i> Đăng xuất</a>
     </div>
 </aside>

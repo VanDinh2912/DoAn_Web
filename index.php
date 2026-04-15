@@ -281,7 +281,14 @@ function createDefaultTable(PDO $conn): array
 	}
 
 	$areaRow = fetchOneSafe($conn, "SELECT MaKhuVuc FROM KhuVuc ORDER BY MaKhuVuc ASC LIMIT 1");
-	$defaultAreaId = readNullablePositiveInt($areaRow["MaKhuVuc"] ?? null);
+	if ($areaRow === null) {
+		return ["success" => false, "error" => "Chưa có khu vực để thêm bàn mới."];
+	}
+
+	$defaultAreaId = readPositiveInt($areaRow["MaKhuVuc"] ?? 0);
+	if ($defaultAreaId <= 0) {
+		return ["success" => false, "error" => "Không xác định được khu vực mặc định."];
+	}
 
 	$nextIndexRow = fetchOneSafe($conn, "SELECT IFNULL(MAX(MaBan), 0) + 1 AS NextIndex FROM Ban");
 	$nextIndex = readPositiveInt($nextIndexRow["NextIndex"] ?? 0);
@@ -290,25 +297,10 @@ function createDefaultTable(PDO $conn): array
 	}
 	$defaultName = "Bàn " . $nextIndex;
 
-	$rateRow = fetchOneSafe(
-		$conn,
-		"SELECT GiaGio FROM Ban WHERE MaLoaiBan = ? ORDER BY MaBan DESC LIMIT 1",
-		[$defaultTypeId]
-	);
-
-	$defaultRate = 0.0;
-	if ($rateRow !== null && isset($rateRow["GiaGio"])) {
-		$defaultRate = (float)$rateRow["GiaGio"];
-	}
-	if ($defaultRate <= 0) {
-		$defaultRate = 60000.0;
-	}
-
 	return $banController->create([
 		"TenBan" => $defaultName,
 		"TrangThai" => "Trống",
 		"MaLoaiBan" => $defaultTypeId,
-		"GiaGio" => $defaultRate,
 		"MaKhuVuc" => $defaultAreaId,
 	]);
 }
@@ -502,7 +494,6 @@ function checkoutInvoice(PDO $conn, int $invoiceId, ?array $calculated = null): 
 }
 
 $selectedTableId = readPositiveInt($_GET["table_id"] ?? 0);
-$tableEditId = readPositiveInt($_GET["table_edit_id"] ?? 0);
 $customerEditId = readPositiveInt($_GET["customer_edit_id"] ?? 0);
 $inventoryEditId = readPositiveInt($_GET["inventory_edit_id"] ?? 0);
 $staffEditId = readPositiveInt($_GET["staff_edit_id"] ?? 0);
@@ -538,12 +529,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 		case "table_create":
 			$tableName = readTextValue($_POST["table_name"] ?? "", 100);
 			$tableTypeId = readPositiveInt($_POST["table_type_id"] ?? 0);
-			$tableRate = readNonNegativeFloat($_POST["table_rate"] ?? 0);
-			$tableAreaId = readNullablePositiveInt($_POST["table_area_id"] ?? null);
+			$tableAreaId = readPositiveInt($_POST["table_area_id"] ?? 0);
 			$tableStatus = normalizeTableStatusInput(readTextValue($_POST["table_status"] ?? "Trống", 30));
 
-			if ($tableName === "" || $tableTypeId <= 0 || $tableRate <= 0) {
-				pushFlashMessage("warn", "Vui lòng nhập đầy đủ thông tin bàn (tên, loại bàn, giá giờ > 0).");
+			if ($tableName === "" || $tableTypeId <= 0 || $tableAreaId <= 0) {
+				pushFlashMessage("warn", "Vui lòng nhập đầy đủ thông tin bàn (tên, loại bàn, khu vực).");
 				redirectToPage("tables");
 			}
 
@@ -552,7 +542,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 				"TenBan" => $tableName,
 				"TrangThai" => $tableStatus,
 				"MaLoaiBan" => $tableTypeId,
-				"GiaGio" => $tableRate,
 				"MaKhuVuc" => $tableAreaId,
 			]);
 
@@ -573,11 +562,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 
 			$tableName = readTextValue($_POST["table_name"] ?? "", 100);
 			$tableTypeId = readPositiveInt($_POST["table_type_id"] ?? 0);
-			$tableRate = readNonNegativeFloat($_POST["table_rate"] ?? 0);
-			$tableAreaId = readNullablePositiveInt($_POST["table_area_id"] ?? null);
+			$tableAreaId = readPositiveInt($_POST["table_area_id"] ?? 0);
 			$tableStatus = normalizeTableStatusInput(readTextValue($_POST["table_status"] ?? "Trống", 30));
 
-			if ($tableName === "" || $tableTypeId <= 0 || $tableRate <= 0) {
+			if ($tableName === "" || $tableTypeId <= 0 || $tableAreaId <= 0) {
 				pushFlashMessage("warn", "Vui lòng nhập đầy đủ thông tin bàn để cập nhật.");
 				redirectToPage("tables", $tableId);
 			}
@@ -587,7 +575,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 				"TenBan" => $tableName,
 				"TrangThai" => $tableStatus,
 				"MaLoaiBan" => $tableTypeId,
-				"GiaGio" => $tableRate,
 				"MaKhuVuc" => $tableAreaId,
 			]);
 
@@ -619,7 +606,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 
 		case "table_type_create":
 			$tableTypeName = readTextValue($_POST["table_type_name"] ?? "", 100);
-			$tableTypeSurcharge = readNonNegativeFloat($_POST["table_type_surcharge"] ?? 0);
+			$tableTypeBasePrice = readNonNegativeFloat($_POST["table_type_base_price"] ?? 0);
 
 			if ($tableTypeName === "") {
 				pushFlashMessage("warn", "Tên loại bàn không được để trống.");
@@ -629,7 +616,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 			$banController = new BanController($conn);
 			$createTypeResponse = $banController->createLoaiBan([
 				"TenLoai" => $tableTypeName,
-				"PhuThu" => $tableTypeSurcharge,
+				"GiaCoBan" => $tableTypeBasePrice,
 			]);
 
 			if (!($createTypeResponse["success"] ?? false)) {
@@ -643,7 +630,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 
 		case "table_area_create":
 			$tableAreaName = readTextValue($_POST["table_area_name"] ?? "", 100);
-			$tableAreaSurcharge = readNonNegativeFloat($_POST["table_area_surcharge"] ?? 0);
+			$tableAreaExtraPrice = readNonNegativeFloat($_POST["table_area_extra_price"] ?? 0);
 
 			if ($tableAreaName === "") {
 				pushFlashMessage("warn", "Tên khu vực không được để trống.");
@@ -653,7 +640,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
 			$banController = new BanController($conn);
 			$createAreaResponse = $banController->createKhuVuc([
 				"TenKhuVuc" => $tableAreaName,
-				"PhuThu" => $tableAreaSurcharge,
+				"ExtraPrice" => $tableAreaExtraPrice,
 			]);
 
 			if (!($createAreaResponse["success"] ?? false)) {
@@ -1157,15 +1144,17 @@ if (!empty($lowStockRows)) {
 	];
 }
 
-$tableTypeOptions = fetchAllSafe(
-	$conn,
-	"SELECT MaLoaiBan, TenLoai, PhuThu FROM LoaiBan ORDER BY MaLoaiBan ASC"
-);
+$tableOptionController = new BanController($conn);
+$tableTypeResponse = $tableOptionController->getLoaiBan();
+$tableAreaResponse = $tableOptionController->getKhuVuc();
 
-$tableAreaOptions = fetchAllSafe(
-	$conn,
-	"SELECT MaKhuVuc, TenKhuVuc, PhuThu FROM KhuVuc ORDER BY MaKhuVuc ASC"
-);
+$tableTypeOptions = ($tableTypeResponse["success"] ?? false) && !empty($tableTypeResponse["data"])
+	? $tableTypeResponse["data"]
+	: [];
+
+$tableAreaOptions = ($tableAreaResponse["success"] ?? false) && !empty($tableAreaResponse["data"])
+	? $tableAreaResponse["data"]
+	: [];
 
 $dvtOptions = fetchAllSafe(
 	$conn,
@@ -1219,7 +1208,9 @@ foreach ($tablesRows as $row) {
 		"areaId" => readNullablePositiveInt($row["MaKhuVuc"] ?? null),
 		"rawStatus" => (string)$row["TrangThai"],
 		"status" => $status,
+		"currentBillId" => readPositiveInt($row["OpenInvoiceId"] ?? 0),
 		"openInvoiceId" => readPositiveInt($row["OpenInvoiceId"] ?? 0),
+		"openedAt" => !empty($row["OpenedAt"]) ? (string)$row["OpenedAt"] : null,
 		"player" => !empty($row["CustomerName"]) ? (string)$row["CustomerName"] : ($status === "available" ? "Sẵn sàng" : "Đang phục vụ"),
 		"time" => $timeLabel,
 		"rateValue" => (float)$row["GiaGio"],
@@ -1240,26 +1231,8 @@ if ($selectedTableId === 0 && !empty($tables)) {
 
 $selectedTable = $tablesById[$selectedTableId] ?? null;
 
-if ($tableEditId > 0 && !isset($tablesById[$tableEditId])) {
-	$tableEditId = 0;
-}
-$tableEditItem = $tableEditId > 0 ? $tablesById[$tableEditId] : null;
-
 $defaultTableTypeId = readPositiveInt($tableTypeOptions[0]["MaLoaiBan"] ?? 0);
 $defaultTableAreaId = readNullablePositiveInt($tableAreaOptions[0]["MaKhuVuc"] ?? null);
-
-$quickOpenTableId = 0;
-if ($selectedTable !== null && $selectedTable["status"] === "available") {
-	$quickOpenTableId = (int)$selectedTable["id"];
-} else {
-	foreach ($tables as $tableOption) {
-		if ($tableOption["status"] === "available") {
-			$quickOpenTableId = (int)$tableOption["id"];
-			break;
-		}
-	}
-}
-$canQuickOpenTable = $quickOpenTableId > 0;
 
 $openBill = null;
 if ($selectedTableId > 0) {
@@ -1621,197 +1594,51 @@ $flashMessages = pullFlashMessages();
 				<?php elseif ($currentPage === "tables"): ?>
 					<section class="panel stagger-fade">
 						<?php
-						$isEditingTable = $tableEditItem !== null;
-						$tableFormName = $isEditingTable ? (string)$tableEditItem["name"] : "";
-						$tableFormTypeId = $isEditingTable ? (int)$tableEditItem["typeId"] : $defaultTableTypeId;
-						$tableFormAreaId = $isEditingTable ? readNullablePositiveInt($tableEditItem["areaId"] ?? null) : $defaultTableAreaId;
-						$tableFormRate = $isEditingTable ? (string)((float)$tableEditItem["rateValue"]) : "";
-						$tableFormStatus = $isEditingTable
-							? normalizeTableStatusInput((string)($tableEditItem["rawStatus"] ?? "Trống"))
-							: "Trống";
+						$tableCreateTypeId = $defaultTableTypeId;
+						$tableCreateAreaId = $defaultTableAreaId;
 						?>
 						<div class="panel-header table-panel-header">
 							<div>
 								<h3>Sơ đồ bàn thời gian thực</h3>
-								<p>Lọc theo trạng thái và quản lý các phiên đang chạy</p>
+								<p>Tập trung quản lý trạng thái bàn theo thời gian thực</p>
 							</div>
-							<div class="table-toolbar">
-								<div class="table-toolbar-actions">
-									<form method="post" class="inline-form">
-										<?php echo csrf_field(); ?>
-										<input type="hidden" name="action" value="add_table">
-										<input type="hidden" name="redirect_page" value="tables">
-										<button type="submit" class="ghost-btn thin"><i class="ri-add-line"></i>Thêm bàn</button>
-									</form>
-
-									<form method="post" class="inline-form">
-										<?php echo csrf_field(); ?>
-										<input type="hidden" name="action" value="start_table">
-										<input type="hidden" name="table_id" value="<?php echo (int)$quickOpenTableId; ?>">
-										<input type="hidden" name="redirect_page" value="tables">
-										<button type="submit" class="solid-btn thin" <?php echo $canQuickOpenTable ? "" : "disabled"; ?>><i class="ri-play-circle-line"></i>Mở bàn</button>
-									</form>
-								</div>
-								<div class="filter-pills" id="tableFilters">
-									<button class="pill is-active" data-filter="all">Tất cả</button>
-									<button class="pill" data-filter="playing">Đang chơi</button>
-									<button class="pill" data-filter="reserved">Đặt trước</button>
-									<button class="pill" data-filter="available">Trống</button>
-								</div>
+							<div class="table-toolbar-actions">
+								<button type="button" class="ghost-btn thin" onclick="openPopup('table')"><i class="ri-add-line"></i>Thêm bàn</button>
+								<button type="button" class="ghost-btn thin" onclick="openPopup('type')"><i class="ri-price-tag-3-line"></i>Thêm loại bàn</button>
+								<button type="button" class="ghost-btn thin" onclick="openPopup('area')"><i class="ri-map-pin-line"></i>Thêm khu vực</button>
 							</div>
 						</div>
 
-						<div class="crud-form-wrap">
-							<div class="crud-form-head">
-								<h4><?php echo $isEditingTable ? "Cập nhật bàn #" . (int)$tableEditItem["id"] : "Thêm bàn mới"; ?></h4>
-								<p><?php echo $isEditingTable ? "Chỉnh sửa thông tin bàn đang chọn." : "Nhập đầy đủ thông tin để tạo bàn mới."; ?></p>
+						<div class="table-filter-row">
+							<div class="filter-pills" id="tableFilters">
+								<button class="pill is-active" data-filter="all">Tất cả</button>
+								<button class="pill" data-filter="playing">Đang chơi</button>
+								<button class="pill" data-filter="reserved">Đặt trước</button>
+								<button class="pill" data-filter="available">Trống</button>
 							</div>
-							<form method="post" class="crud-form">
-								<?php echo csrf_field(); ?>
-								<input type="hidden" name="action" value="<?php echo $isEditingTable ? "table_update" : "table_create"; ?>">
-								<input type="hidden" name="redirect_page" value="tables">
-								<?php if ($isEditingTable): ?>
-									<input type="hidden" name="table_id" value="<?php echo (int)$tableEditItem["id"]; ?>">
-								<?php endif; ?>
-
-								<div class="crud-grid crud-grid-4">
-									<label class="crud-field">Tên bàn
-										<input type="text" name="table_name" value="<?php echo h($tableFormName); ?>" required>
-									</label>
-
-									<label class="crud-field">Loại bàn
-										<select name="table_type_id" required>
-											<option value="">Chọn loại bàn</option>
-											<?php foreach ($tableTypeOptions as $typeOption): ?>
-												<?php $typeOptionId = (int)($typeOption["MaLoaiBan"] ?? 0); ?>
-												<option value="<?php echo $typeOptionId; ?>" <?php echo $typeOptionId === $tableFormTypeId ? "selected" : ""; ?>>
-													<?php echo h((string)($typeOption["TenLoai"] ?? "")); ?>
-												</option>
-											<?php endforeach; ?>
-										</select>
-									</label>
-
-									<label class="crud-field">Khu vực
-										<select name="table_area_id">
-											<option value="">Không chọn</option>
-											<?php foreach ($tableAreaOptions as $areaOption): ?>
-												<?php $areaOptionId = (int)($areaOption["MaKhuVuc"] ?? 0); ?>
-												<option value="<?php echo $areaOptionId; ?>" <?php echo $areaOptionId === (int)$tableFormAreaId ? "selected" : ""; ?>>
-													<?php echo h((string)($areaOption["TenKhuVuc"] ?? "")); ?>
-												</option>
-											<?php endforeach; ?>
-										</select>
-									</label>
-
-									<label class="crud-field">Giá giờ (VND)
-										<input type="number" name="table_rate" min="1000" step="1000" value="<?php echo h($tableFormRate); ?>" required>
-									</label>
-
-									<label class="crud-field">Trạng thái
-										<select name="table_status" required>
-											<option value="Trống" <?php echo $tableFormStatus === "Trống" ? "selected" : ""; ?>>Trống</option>
-											<option value="Đang sử dụng" <?php echo $tableFormStatus === "Đang sử dụng" ? "selected" : ""; ?>>Đang sử dụng</option>
-											<option value="Đặt trước" <?php echo $tableFormStatus === "Đặt trước" ? "selected" : ""; ?>>Đặt trước</option>
-										</select>
-									</label>
-								</div>
-
-								<div class="crud-actions">
-									<button type="submit" class="solid-btn thin">
-										<?php echo $isEditingTable ? "Lưu thay đổi" : "Tạo bàn"; ?>
-									</button>
-									<?php if ($isEditingTable): ?>
-										<a class="ghost-btn thin" href="index.php?page=tables">Hủy sửa</a>
-									<?php endif; ?>
-								</div>
-							</form>
-						</div>
-
-						<div class="table-meta-grid">
-							<article class="table-meta-card">
-								<div class="crud-form-head">
-									<h4>Thêm loại bàn</h4>
-									<p>Tạo nhanh loại bàn mới để dùng trong danh sách bàn.</p>
-								</div>
-								<form method="post" class="crud-form">
-									<?php echo csrf_field(); ?>
-									<input type="hidden" name="action" value="table_type_create">
-									<input type="hidden" name="redirect_page" value="tables">
-									<div class="crud-grid table-meta-fields">
-										<label class="crud-field">Tên loại bàn
-											<input type="text" name="table_type_name" maxlength="100" required>
-										</label>
-										<label class="crud-field">Phụ thu (VND)
-											<input type="number" name="table_type_surcharge" min="0" step="1000" value="0">
-										</label>
-									</div>
-									<div class="crud-actions">
-										<button type="submit" class="solid-btn thin">Thêm loại bàn</button>
-									</div>
-								</form>
-								<div class="table-meta-list">
-									<?php if (empty($tableTypeOptions)): ?>
-										<p class="inline-note">Chưa có loại bàn nào.</p>
-									<?php else: ?>
-										<?php foreach ($tableTypeOptions as $typeOption): ?>
-											<span class="chip chip-new">
-												<?php echo h((string)($typeOption["TenLoai"] ?? "")); ?>
-												(<?php echo h(formatMoney((float)($typeOption["PhuThu"] ?? 0))); ?>đ)
-											</span>
-										<?php endforeach; ?>
-									<?php endif; ?>
-								</div>
-							</article>
-
-							<article class="table-meta-card">
-								<div class="crud-form-head">
-									<h4>Thêm khu vực</h4>
-									<p>Tạo khu vực mới để gán cho bàn theo từng không gian.</p>
-								</div>
-								<form method="post" class="crud-form">
-									<?php echo csrf_field(); ?>
-									<input type="hidden" name="action" value="table_area_create">
-									<input type="hidden" name="redirect_page" value="tables">
-									<div class="crud-grid table-meta-fields">
-										<label class="crud-field">Tên khu vực
-											<input type="text" name="table_area_name" maxlength="100" required>
-										</label>
-										<label class="crud-field">Phụ thu (VND)
-											<input type="number" name="table_area_surcharge" min="0" step="1000" value="0">
-										</label>
-									</div>
-									<div class="crud-actions">
-										<button type="submit" class="solid-btn thin">Thêm khu vực</button>
-									</div>
-								</form>
-								<div class="table-meta-list">
-									<?php if (empty($tableAreaOptions)): ?>
-										<p class="inline-note">Chưa có khu vực nào.</p>
-									<?php else: ?>
-										<?php foreach ($tableAreaOptions as $areaOption): ?>
-											<span class="chip chip-paid">
-												<?php echo h((string)($areaOption["TenKhuVuc"] ?? "")); ?>
-												(<?php echo h(formatMoney((float)($areaOption["PhuThu"] ?? 0))); ?>đ)
-											</span>
-										<?php endforeach; ?>
-									<?php endif; ?>
-								</div>
-							</article>
 						</div>
 
 						<div class="table-card-grid" id="tableCardGrid">
 							<?php foreach ($tables as $table): ?>
 								<?php $isSelectedTable = (int)$table["id"] === $selectedTableId; ?>
-								<article class="table-card <?php echo $isSelectedTable ? "is-selected" : ""; ?>" data-status="<?php echo h($table["status"]); ?>">
+								<article
+									class="table-card <?php echo $isSelectedTable ? "is-selected" : ""; ?>"
+									data-status="<?php echo h($table["status"]); ?>"
+									data-table-id="<?php echo (int)$table["id"]; ?>"
+									data-table-name="<?php echo h($table["name"]); ?>"
+									data-table-rate="<?php echo h((string)$table["rateValue"]); ?>"
+									data-current-bill-id="<?php echo (int)$table["currentBillId"]; ?>"
+									data-opened-at="<?php echo h((string)($table["openedAt"] ?? "")); ?>"
+								>
 									<div class="table-top">
 										<h4><?php echo h($table["name"]); ?></h4>
-										<span class="chip chip-<?php echo h($table["status"]); ?>"><?php echo h(tableStatusLabel($table["status"])); ?></span>
+											<span class="chip chip-<?php echo h($table["status"]); ?>" data-role="table-status-label"><?php echo h(tableStatusLabel($table["status"])); ?></span>
 									</div>
 									<p class="table-type"><?php echo h($table["type"]); ?> • <?php echo h($table["rate"]); ?></p>
 									<div class="table-center"><i class="ri-layout-grid-line"></i></div>
 									<div class="table-bottom">
-										<strong><?php echo h($table["player"]); ?></strong>
-										<small><?php echo h($table["time"]); ?></small>
+											<strong data-role="table-player"><?php echo h($table["player"]); ?></strong>
+											<small data-role="table-elapsed"><?php echo h($table["time"]); ?></small>
 									</div>
 									<div class="table-actions">
 										<a class="ghost-btn thin full" href="index.php?page=orders&amp;action=select_table&amp;table_id=<?php echo (int)$table["id"]; ?>">Chọn bàn</a>
@@ -1835,20 +1662,161 @@ $flashMessages = pullFlashMessages();
 										<?php endif; ?>
 
 										<div class="table-inline-actions">
-											<a class="ghost-btn thin full" href="index.php?page=tables&amp;table_edit_id=<?php echo (int)$table["id"]; ?>">Sửa</a>
-											<form method="post" class="inline-form">
-												<?php echo csrf_field(); ?>
-												<input type="hidden" name="action" value="table_delete">
-												<input type="hidden" name="table_id" value="<?php echo (int)$table["id"]; ?>">
-												<input type="hidden" name="redirect_page" value="tables">
-												<button type="submit" class="danger-btn thin full" onclick="return confirm('Xóa bàn này?')">Xóa</button>
-											</form>
+											<button
+												type="button"
+												class="ghost-btn thin full"
+												onclick="openEditTablePopup(this)"
+												data-table-id="<?php echo (int)$table["id"]; ?>"
+												data-table-name="<?php echo h($table["name"]); ?>"
+												data-table-type-id="<?php echo (int)$table["typeId"]; ?>"
+												data-table-area-id="<?php echo $table["areaId"] !== null ? (int)$table["areaId"] : ""; ?>"
+												data-table-status="<?php echo h(normalizeTableStatusInput((string)$table["rawStatus"])); ?>"
+											>
+												Sửa
+											</button>
 										</div>
 									</div>
 								</article>
 							<?php endforeach; ?>
 						</div>
 					</section>
+
+					<div id="overlay" class="overlay hidden" aria-hidden="true">
+						<div id="popupTable" class="popup hidden" role="dialog" aria-modal="true" aria-labelledby="popupTableTitle">
+							<div class="popup-titlebar">
+								<h4 id="popupTableTitle">Thêm bàn</h4>
+								<button type="button" class="popup-close" onclick="closePopup()" aria-label="Đóng popup">&times;</button>
+							</div>
+							<p class="popup-subtitle" id="popupTableSubtitle">Nhập thông tin để tạo bàn mới.</p>
+							<form method="post" class="crud-form popup-body" data-popup-form="table" id="popupTableForm">
+								<?php echo csrf_field(); ?>
+								<input type="hidden" name="action" value="table_create" id="popupTableAction">
+								<input type="hidden" name="redirect_page" value="tables">
+								<input type="hidden" name="table_id" value="" id="popupTableId">
+
+								<label class="crud-field">Tên bàn
+									<input type="text" name="table_name" id="popupTableName" required>
+								</label>
+
+								<label class="crud-field">Loại bàn
+									<select name="table_type_id" id="popupTableTypeId" required>
+										<option value="">Chọn loại bàn</option>
+										<?php foreach ($tableTypeOptions as $typeOption): ?>
+											<?php $typeOptionId = (int)($typeOption["MaLoaiBan"] ?? 0); ?>
+											<?php $typeBasePrice = (float)($typeOption["GiaCoBan"] ?? $typeOption["PhuThu"] ?? 0); ?>
+											<option value="<?php echo $typeOptionId; ?>" data-base-price="<?php echo h((string)$typeBasePrice); ?>" <?php echo $typeOptionId === $tableCreateTypeId ? "selected" : ""; ?>>
+												<?php echo h((string)($typeOption["TenLoai"] ?? "")); ?>
+											</option>
+										<?php endforeach; ?>
+									</select>
+								</label>
+
+								<label class="crud-field">Khu vực
+									<select name="table_area_id" id="popupTableAreaId" required>
+										<option value="">Chọn khu vực</option>
+										<?php foreach ($tableAreaOptions as $areaOption): ?>
+											<?php $areaOptionId = (int)($areaOption["MaKhuVuc"] ?? 0); ?>
+											<?php $areaExtraPrice = (float)($areaOption["ExtraPrice"] ?? $areaOption["PhuThu"] ?? 0); ?>
+											<option value="<?php echo $areaOptionId; ?>" data-extra-price="<?php echo h((string)$areaExtraPrice); ?>" <?php echo $areaOptionId === (int)$tableCreateAreaId ? "selected" : ""; ?>>
+												<?php echo h((string)($areaOption["TenKhuVuc"] ?? "")); ?>
+											</option>
+										<?php endforeach; ?>
+									</select>
+								</label>
+
+								<label class="crud-field">Giá bàn tự động (VND/giờ)
+									<input type="text" id="popupTableCalculatedPrice" value="" readonly>
+									<small>Giá = Giá loại bàn + Phụ thu khu vực</small>
+								</label>
+
+								<label class="crud-field">Trạng thái
+									<select name="table_status" id="popupTableStatus" required>
+										<option value="Trống" selected>Trống</option>
+										<option value="Đang sử dụng">Đang sử dụng</option>
+										<option value="Đặt trước">Đặt trước</option>
+									</select>
+								</label>
+
+								<div class="crud-actions">
+									<button type="submit" class="solid-btn thin" id="popupTableSubmit">Lưu bàn</button>
+									<button type="button" class="danger-btn thin hidden" id="popupTableDeleteBtn" onclick="confirmDeleteTableFromPopup()">Xóa bàn</button>
+									<button type="button" class="ghost-btn thin" onclick="closePopup()">Đóng</button>
+								</div>
+							</form>
+							<form method="post" class="hidden" id="popupTableDeleteForm">
+								<?php echo csrf_field(); ?>
+								<input type="hidden" name="action" value="table_delete">
+								<input type="hidden" name="redirect_page" value="tables">
+								<input type="hidden" name="table_id" value="" id="popupTableDeleteId">
+							</form>
+						</div>
+
+						<div id="popupTableType" class="popup hidden" role="dialog" aria-modal="true" aria-labelledby="popupTableTypeTitle">
+							<div class="popup-titlebar">
+								<h4 id="popupTableTypeTitle">Thêm loại bàn</h4>
+								<button type="button" class="popup-close" onclick="closePopup()" aria-label="Đóng popup">&times;</button>
+							</div>
+							<form method="post" class="crud-form popup-body" data-popup-form="type" id="popupTableTypeForm">
+								<?php echo csrf_field(); ?>
+								<input type="hidden" name="action" value="table_type_create">
+								<input type="hidden" name="redirect_page" value="tables">
+
+								<label class="crud-field">Tên loại bàn
+									<input type="text" name="table_type_name" id="popupTableTypeName" maxlength="100" required>
+								</label>
+
+								<label class="crud-field">Giá cơ bản / giờ (VND)
+									<input type="number" name="table_type_base_price" id="popupTableTypeBasePrice" min="0" step="1000" value="0" required>
+								</label>
+
+								<div class="crud-actions">
+									<button type="submit" class="solid-btn thin" id="popupTableTypeSubmit">Lưu loại bàn</button>
+									<button type="button" class="ghost-btn thin hidden" id="popupTableTypeCancelEdit">Hủy sửa</button>
+									<button type="button" class="ghost-btn thin" onclick="closePopup()">Đóng</button>
+								</div>
+							</form>
+							<div class="popup-entity-panel">
+								<div class="popup-entity-header">
+									<h5>Danh sách loại bàn</h5>
+									<small>Quản lý nhanh ngay trong popup</small>
+								</div>
+								<div id="popupTableTypeList" class="popup-entity-list" aria-live="polite"></div>
+							</div>
+						</div>
+
+						<div id="popupArea" class="popup hidden" role="dialog" aria-modal="true" aria-labelledby="popupAreaTitle">
+							<div class="popup-titlebar">
+								<h4 id="popupAreaTitle">Thêm khu vực</h4>
+								<button type="button" class="popup-close" onclick="closePopup()" aria-label="Đóng popup">&times;</button>
+							</div>
+							<form method="post" class="crud-form popup-body" data-popup-form="area" id="popupAreaForm">
+								<?php echo csrf_field(); ?>
+								<input type="hidden" name="action" value="table_area_create">
+								<input type="hidden" name="redirect_page" value="tables">
+
+								<label class="crud-field">Tên khu vực
+									<input type="text" name="table_area_name" id="popupAreaName" maxlength="100" required>
+								</label>
+
+								<label class="crud-field">Phụ thu khu vực (VND)
+									<input type="number" name="table_area_extra_price" id="popupAreaExtraPrice" min="0" step="1000" value="0" required>
+								</label>
+
+								<div class="crud-actions">
+									<button type="submit" class="solid-btn thin" id="popupAreaSubmit">Lưu khu vực</button>
+									<button type="button" class="ghost-btn thin hidden" id="popupAreaCancelEdit">Hủy sửa</button>
+									<button type="button" class="ghost-btn thin" onclick="closePopup()">Đóng</button>
+								</div>
+							</form>
+							<div class="popup-entity-panel">
+								<div class="popup-entity-header">
+									<h5>Danh sách khu vực</h5>
+									<small>Có thể sửa hoặc xóa trực tiếp</small>
+								</div>
+								<div id="popupAreaList" class="popup-entity-list" aria-live="polite"></div>
+							</div>
+						</div>
+					</div>
 				<?php elseif ($currentPage === "orders"): ?>
 					<section class="split-grid stagger-fade">
 						<article class="panel">
@@ -2064,12 +2032,12 @@ $flashMessages = pullFlashMessages();
 										<td>
 											<div class="table-inline-actions">
 												<a class="ghost-btn thin full" href="index.php?page=customers&amp;customer_edit_id=<?php echo (int)$customer["id"]; ?>">Sửa</a>
-												<form method="post" class="inline-form">
+												<form method="post" class="inline-form js-confirm-delete-form" data-confirm-title="Xóa khách hàng" data-confirm-message="Bạn có chắc muốn xóa khách hàng này?">
 													<?php echo csrf_field(); ?>
 													<input type="hidden" name="action" value="customer_delete">
 													<input type="hidden" name="customer_id" value="<?php echo (int)$customer["id"]; ?>">
 													<input type="hidden" name="redirect_page" value="customers">
-													<button type="submit" class="danger-btn thin full" onclick="return confirm('Xóa khách hàng này?')">Xóa</button>
+													<button type="submit" class="danger-btn thin full">Xóa</button>
 												</form>
 											</div>
 										</td>
@@ -2183,12 +2151,12 @@ $flashMessages = pullFlashMessages();
 										<td>
 											<div class="table-inline-actions">
 												<a class="ghost-btn thin full" href="index.php?page=inventory&amp;inventory_edit_id=<?php echo (int)$item["id"]; ?>">Sửa</a>
-												<form method="post" class="inline-form">
+												<form method="post" class="inline-form js-confirm-delete-form" data-confirm-title="Xóa nguyên liệu" data-confirm-message="Bạn có chắc muốn xóa nguyên liệu này?">
 													<?php echo csrf_field(); ?>
 													<input type="hidden" name="action" value="inventory_delete">
 													<input type="hidden" name="ingredient_id" value="<?php echo (int)$item["id"]; ?>">
 													<input type="hidden" name="redirect_page" value="inventory">
-													<button type="submit" class="danger-btn thin full" onclick="return confirm('Xóa nguyên liệu này?')">Xóa</button>
+													<button type="submit" class="danger-btn thin full">Xóa</button>
 												</form>
 											</div>
 										</td>
@@ -2283,12 +2251,12 @@ $flashMessages = pullFlashMessages();
 									</div>
 									<div class="staff-actions">
 										<a class="ghost-btn thin full" href="index.php?page=staff&amp;staff_edit_id=<?php echo (int)$member["id"]; ?>">Sửa</a>
-										<form method="post" class="inline-form full">
+										<form method="post" class="inline-form full js-confirm-delete-form" data-confirm-title="Xóa nhân viên" data-confirm-message="Bạn có chắc muốn xóa nhân viên này?">
 											<?php echo csrf_field(); ?>
 											<input type="hidden" name="action" value="staff_delete">
 											<input type="hidden" name="staff_id" value="<?php echo (int)$member["id"]; ?>">
 											<input type="hidden" name="redirect_page" value="staff">
-											<button type="submit" class="danger-btn thin full" onclick="return confirm('Xóa nhân viên này?')">Xóa</button>
+											<button type="submit" class="danger-btn thin full">Xóa</button>
 										</form>
 									</div>
 								</article>
@@ -2387,6 +2355,20 @@ $flashMessages = pullFlashMessages();
 			</main>
 
 			<?php include __DIR__ . "/includes/footer.php"; ?>
+		</div>
+	</div>
+
+	<div id="confirmOverlay" class="overlay hidden" aria-hidden="true">
+		<div id="popupConfirmDelete" class="popup popup-confirm hidden" role="dialog" aria-modal="true" aria-labelledby="popupConfirmDeleteTitle">
+			<div class="popup-titlebar">
+				<h4 id="popupConfirmDeleteTitle">Xác nhận xóa</h4>
+				<button type="button" class="popup-close" onclick="closeConfirmPopup()" aria-label="Đóng popup xác nhận">&times;</button>
+			</div>
+			<p class="popup-subtitle" id="popupConfirmDeleteMessage">Bạn có chắc muốn xóa dữ liệu này?</p>
+			<div class="crud-actions popup-confirm-actions">
+				<button type="button" class="danger-btn thin" id="popupConfirmDeleteAccept">Xóa</button>
+				<button type="button" class="ghost-btn thin" onclick="closeConfirmPopup()">Hủy</button>
+			</div>
 		</div>
 	</div>
 

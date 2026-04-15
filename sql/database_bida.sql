@@ -8,6 +8,7 @@ CREATE TABLE `ChucVu` (
 ) ENGINE=InnoDB;
 
 -- 2. Bảng Khu Vực
+-- PhuThu tại KhuVuc được dùng như extraPrice (phụ thu khu vực).
 CREATE TABLE `KhuVuc` (
   `MaKhuVuc` INT AUTO_INCREMENT PRIMARY KEY,
   `TenKhuVuc` TEXT NOT NULL,
@@ -15,6 +16,7 @@ CREATE TABLE `KhuVuc` (
 ) ENGINE=InnoDB;
 
 -- 3. Bảng Loại Bàn
+-- PhuThu tại LoaiBan được dùng như GiaCoBan/basePrice để giữ tương thích schema cũ.
 CREATE TABLE `LoaiBan` (
   `MaLoaiBan` INT AUTO_INCREMENT PRIMARY KEY,
   `TenLoai` TEXT NOT NULL,
@@ -65,6 +67,7 @@ CREATE TABLE `User` (
 ) ENGINE=InnoDB;
 
 -- 9. Bảng Bàn
+-- GiaGio là giá cuối cùng của bàn: GiaGio = LoaiBan(basePrice) + KhuVuc(extraPrice).
 CREATE TABLE `Ban` (
   `MaBan` INT AUTO_INCREMENT PRIMARY KEY,
   `TenBan` TEXT NOT NULL,

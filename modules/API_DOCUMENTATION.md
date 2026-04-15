@@ -29,6 +29,10 @@ Content-Type: application/json
 
 ## 1. Quản lý Bàn (quanly_ban)
 
+Quy tắc tính giá bàn:
+- `GiaGio` (giá cuối cùng của bàn) = `LoaiBan.GiaCoBan` + `KhuVuc.ExtraPrice`
+- Backend tự động tính và lưu `GiaGio` khi tạo/cập nhật bàn
+
 ### 1.1 Lấy tất cả bàn
 ```
 GET /modules/quanly_ban/api.php?action=getAll
@@ -82,7 +86,6 @@ Body:
   "TenBan": "Bàn 5",
   "TrangThai": "Trống",
   "MaLoaiBan": 1,
-  "GiaGio": 50000,
   "MaKhuVuc": 1
 }
 
@@ -101,7 +104,7 @@ PUT /modules/quanly_ban/api.php?action=update&id=1
 Body:
 {
   "TenBan": "Bàn 1 - VIP",
-  "GiaGio": 60000,
+  "MaLoaiBan": 2,
   "MaKhuVuc": 2
 }
 
@@ -150,6 +153,7 @@ Response:
     {
       "MaLoaiBan": 1,
       "TenLoai": "Standard",
+      "GiaCoBan": 50000,
       "PhuThu": 0
     }
   ]
@@ -163,7 +167,7 @@ POST /modules/quanly_ban/api.php?action=createLoaiBan
 Body:
 {
   "TenLoai": "VIP",
-  "PhuThu": 20000
+  "GiaCoBan": 70000
 }
 
 Response:
@@ -185,6 +189,7 @@ Response:
     {
       "MaKhuVuc": 1,
       "TenKhuVuc": "Tầng trệt",
+      "ExtraPrice": 0,
       "PhuThu": 0
     }
   ]
@@ -198,7 +203,7 @@ POST /modules/quanly_ban/api.php?action=createKhuVuc
 Body:
 {
   "TenKhuVuc": "Phòng lạnh",
-  "PhuThu": 10000
+  "ExtraPrice": 10000
 }
 
 Response:
